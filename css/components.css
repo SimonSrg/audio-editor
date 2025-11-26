@@ -1,0 +1,109 @@
+/* 按钮样式 */
+.btn {
+    padding: 8px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    background: #444;
+    color: white;
+    font-size: 14px;
+    margin-right: 10px;
+    transition: 0.2s;
+}
+.btn.primary { background: var(--primary); }
+.btn.success { background: #28a745; }
+.btn.danger { background: #d9534f; } /* 红色删除按钮 */
+.btn.sm { padding: 4px 10px; font-size: 12px; margin-right: 0; } /* 小号按钮 */
+
+.btn:hover { opacity: 0.9; }
+
+.btn-icon {
+    background: none;
+    border: 1px solid var(--border);
+    color: white;
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 18px;
+    display: inline-flex; align-items: center; justify-content: center;
+}
+.btn-icon:hover { background: #444; }
+
+/* 时间轴 */
+.timeline-scroll-area {
+    width: 100%; height: 100%;
+    overflow-x: auto; overflow-y: hidden;
+    position: relative;
+}
+canvas { display: block; cursor: pointer; }
+
+#playhead {
+    position: absolute; top: 0; left: 0;
+    width: 2px; height: 100%;
+    background-color: #ff0000;
+    pointer-events: none; z-index: 10;
+    transform: translateX(0);
+}
+
+/* 播放列表 - 横向卡片布局 */
+.playlist {
+    list-style: none; padding: 0;
+    display: flex; flex-wrap: wrap; gap: 10px; /* 核心：横向排列 */
+}
+
+.playlist-item {
+    background: #333;
+    padding: 10px;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column; /* 垂直布局 */
+    justify-content: space-between;
+    align-items: center;
+    cursor: move;
+    border-top: 3px solid var(--primary);
+    
+    min-width: 140px;
+    max-width: 160px;
+    height: 90px;
+    text-align: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+}
+
+.playlist-item span {
+    font-size: 12px;
+    width: 100%;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.playlist-item.dragging {
+    opacity: 0.5; border: 2px dashed #666;
+}
+
+/* 弹窗样式 */
+.modal-overlay {
+    position: fixed; top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex; justify-content: center; align-items: center;
+    z-index: 1000;
+}
+.modal-box {
+    background: #252526; padding: 20px;
+    border-radius: 8px; border: 1px solid #3e3e42;
+    min-width: 320px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+}
+.modal-box h3 { margin-top: 0; color: #fff; }
+.modal-box .form-group { margin: 20px 0; display: flex; align-items: center; gap: 10px; }
+.modal-box input {
+    background: #333; border: 1px solid #3e3e42;
+    color: white; padding: 8px; border-radius: 4px; flex: 1;
+}
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
+.input {
+    border: 1px solid #3e3e42;
+    padding: 8px;
+    border-radius: 4px;
+    flex: 1;
+}
