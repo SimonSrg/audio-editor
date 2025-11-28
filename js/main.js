@@ -30,11 +30,15 @@ const Playlist = {
             li.className = 'playlist-item';
             li.draggable = true;
             li.dataset.index = i;
-            // 按钮样式统一
+            
+            // 修改：增加 裁剪 按钮
             li.innerHTML = `
                 <span>${i+1}. ${clip.name}</span>
                 <span style="color:#999; font-size:10px;">${Utils.formatTime(clip.duration)}</span>
-                <button class="btn danger sm" onclick="Playlist.del(${clip.id})">删除</button>
+                <div style="display:flex; gap:5px; margin-top:5px;">
+                    <button class="btn sm" onclick="openTrimModal(${clip.id})">裁剪</button>
+                    <button class="btn danger sm" onclick="Playlist.del(${clip.id})">删除</button>
+                </div>
             `;
             this.el.appendChild(li);
         });
@@ -173,20 +177,28 @@ const AudioCore = {
         this.scheduledNodes = [];
 
         Store.state.clips.forEach(clip => {
-            const end = cursor + clip.duration;
+            const end = cursor + clip.duration; // 注意：这里的 clip.duration 已经是裁剪后的时长
+            
             if (end > this.startOffset) {
                 const src = this.ctx.createBufferSource();
                 src.buffer = clip.buffer;
                 src.connect(this.ctx.destination);
                 
-                let when = 0, offset = 0, dur = clip.duration;
+                let when = 0, offsetInPlay = 0, dur = clip.duration;
+
                 if (cursor < this.startOffset) {
-                    offset = this.startOffset - cursor;
-                    dur -= offset;
+                    // 从片段中间开始播放
+                    offsetInPlay = this.startOffset - cursor;
+                    dur -= offsetInPlay;
                 } else {
+                    // 片段还没开始，等待播放
                     when = cursor - this.startOffset;
                 }
-                src.start(this.ctx.currentTime + when, offset, dur);
+
+                // 核心修改：实际读取 Buffer 的偏移量 = 裁剪开始点 + 当前播放进度偏移
+                const bufferOffset = clip.trimStart + offsetInPlay;
+
+                src.start(this.ctx.currentTime + when, bufferOffset, dur);
                 this.scheduledNodes.push(src);
             }
             cursor += clip.duration;
@@ -234,22 +246,38 @@ const Exporter = {
         
         let cursor = 0;
         clips.forEach(clip => {
-            const cStart = cursor, cEnd = cursor + clip.duration;
-            if (cEnd > start && cStart < end) {
+            const clipStart = cursor;
+            const clipEnd = cursor + clip.duration; // 裁剪后的时长
+
+            // 判断是否有交集
+            if (clipEnd > start && clipStart < end) {
                 const src = ctx.createBufferSource();
                 src.buffer = clip.buffer;
                 src.connect(ctx.destination);
                 
-                let playStart = 0, offset = 0, playDur = clip.duration;
-                if (cStart < start) {
-                    offset = start - cStart;
-                    playDur -= offset;
+                let playStartTimeInExport = 0; // 在导出文件中的开始时间
+                let offsetInClip = 0; // 在 Clip 逻辑时间轴上的偏移
+                let playDuration = clip.duration;
+
+                // 1. 计算片段在导出时间轴上的位置
+                if (clipStart < start) {
+                    // 片段开始时间早于导出开始时间，需要截掉前面一部分
+                    offsetInClip = start - clipStart;
+                    playDuration -= offsetInClip;
                 } else {
-                    playStart = cStart - start;
+                    // 片段在导出范围内开始
+                    playStartTimeInExport = clipStart - start;
                 }
-                if (playStart + playDur > dur) playDur = dur - playStart;
-                
-                src.start(playStart, offset, playDur);
+
+                // 2. 限制播放时长，防止超出导出结束时间
+                if (playStartTimeInExport + playDuration > dur) {
+                    playDuration = dur - playStartTimeInExport;
+                }
+
+                // 核心修改：实际 Buffer 读取位置 = 裁剪开始点 + 逻辑偏移
+                const bufferStartOffset = clip.trimStart + offsetInClip;
+
+                src.start(playStartTimeInExport, bufferStartOffset, playDuration);
             }
             cursor += clip.duration;
         });
@@ -294,7 +322,17 @@ const els = {
     play: $('btn-play'), prev: $('btn-prev'), next: $('btn-next'),
     export: $('btn-export'), start: $('export-start'), end: $('export-end'),
     display: $('time-display'),
-    modal: $('custom-modal'), mConfirm: $('modal-btn-confirm'), mCancel: $('modal-btn-cancel'), mInput: $('modal-duration-input')
+    modal: $('custom-modal'),
+    mConfirm: $('modal-btn-confirm'),
+    mCancel: $('modal-btn-cancel'),
+    mInput: $('modal-duration-input'),
+    tModal: $('trim-modal'), 
+    tName: $('trim-filename'),
+    tOrigin: $('trim-original-duration'),
+    tStart: $('trim-start-input'), 
+    tEnd: $('trim-end-input'),
+    tConfirm: $('trim-btn-confirm'),
+    tCancel: $('trim-btn-cancel')
 };
 
 // Upload
@@ -343,3 +381,41 @@ bus.on('state-changed', d => {
 
 // Export
 els.export.onclick = () => Exporter.export(parseFloat(els.start.value)||0, parseFloat(els.end.value)||0);
+
+let currentTrimId = null;
+
+// 全局函数，供 Playlist HTML调用
+window.openTrimModal = (id) => {
+    const clip = Store.getClips().find(c => c.id === id);
+    if (!clip) return;
+
+    currentTrimId = id;
+    els.tName.textContent = `正在裁剪: ${clip.name}`;
+    els.tOrigin.textContent = Utils.formatTime(clip.originalDuration);
+    
+    // 填充当前裁剪值
+    els.tStart.value = clip.trimStart;
+    els.tEnd.value = clip.trimStart + clip.duration; // 当前结束点 = 开始点 + 持续时长
+    
+    // 设置最大值限制
+    els.tStart.max = clip.originalDuration;
+    els.tEnd.max = clip.originalDuration;
+
+    bus.emit('seek'); // 暂停播放
+    els.tModal.style.display = 'flex';
+};
+
+els.tCancel.onclick = () => els.tModal.style.display = 'none';
+
+els.tConfirm.onclick = () => {
+    const s = parseFloat(els.tStart.value);
+    const e = parseFloat(els.tEnd.value);
+    const clip = Store.getClips().find(c => c.id === currentTrimId);
+
+    if (isNaN(s) || isNaN(e)) return alert('请输入有效数字');
+    if (s < 0 || e > clip.originalDuration) return alert('时间超出原始音频范围');
+    if (s >= e) return alert('结束时间必须大于开始时间');
+
+    Store.trimClip(currentTrimId, s, e);
+    els.tModal.style.display = 'none';
+};

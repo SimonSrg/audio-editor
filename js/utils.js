@@ -21,8 +21,26 @@ const Store = {
         clips: [], currentTime: 0, isPlaying: false, totalDuration: 0
     },
     getClips() { return this.state.clips; },
-    addClip(clip) { this.state.clips.push(clip); this.recalc(); },
-    removeClip(id) { this.state.clips = this.state.clips.filter(c => c.id !== id); this.recalc(); },
+    addClip(clip) {
+        clip.trimStart = 0; 
+        clip.originalDuration = clip.duration;
+        
+        this.state.clips.push(clip); 
+        this.recalc(); 
+    },
+    trimClip(id, start, end) {
+        const clip = this.state.clips.find(c => c.id === id);
+        if (clip) {
+            clip.trimStart = start;
+            clip.duration = end - start;
+            this.recalc();
+            bus.emit('clips-updated');
+        }
+    },
+    removeClip(id) {
+        this.state.clips = this.state.clips.filter(c => c.id !== id);
+        this.recalc();
+    },
     reorderClips(from, to) {
         const item = this.state.clips.splice(from, 1)[0];
         this.state.clips.splice(to, 0, item);
